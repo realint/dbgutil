@@ -161,7 +161,7 @@ func Print(headlen int, printPointers bool, data ...interface{}) []byte {
 }
 
 func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo) {
-	t := val.Kind()
+	var t = val.Kind()
 
 	switch t {
 	case reflect.Bool:
@@ -172,7 +172,9 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		fmt.Fprintf(buf, "%v", val.Uint())
 	case reflect.Float32, reflect.Float64:
 		fmt.Fprintf(buf, "%v", val.Float())
-	case reflect.Ptr:
+	case reflect.Complex64, reflect.Complex128:
+		fmt.Fprintf(buf, "%v", val.Complex())
+	case reflect.Ptr, reflect.UnsafePointer:
 		if val.IsNil() {
 			fmt.Fprint(buf, "nil")
 			return
@@ -204,7 +206,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		var value = val.Elem()
 
 		if !value.IsValid() {
-			fmt.Fprint(buf, "[Invalid Interface]")
+			fmt.Fprint(buf, "`Invalid Interface`")
 		} else {
 			printKeyValue(buf, value, pointers)
 		}
@@ -255,10 +257,10 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		}
 		fmt.Fprint(buf, " }")
 	case reflect.Chan:
-		fmt.Fprint(buf, "[Chan]")
+		fmt.Fprint(buf, val.Type().String())
 	case reflect.Invalid:
-		fmt.Fprint(buf, "[Invalid Type]")
+		fmt.Fprint(buf, "`Invalid Type`")
 	default:
-		fmt.Fprint(buf, "[Could't Print This Value]", t)
+		fmt.Fprint(buf, "`Could't Print`", t)
 	}
 }
