@@ -73,15 +73,26 @@
 
 当调用变量打印的时候：
 
-	dbgutil.Display("value", v1)
+	dbgutil.Display("value", v1).Break(true)
 
 将输出以下牛逼的结果：
 
-	2013/07/03 13:21:48 [Debug]
+	2013/07/04 00:29:32 [Debug] xxx/api/api.go:54
+
+	[Variables]
 	value = &api.mytype{ next: &api.mytype{ next: &api.mytype{ next: nil, prev: & }, prev: & }, prev: & }
-	        │                  │                  │                             │          │          │
-	        │                  │                  └─────────────────────────────┼──────────┼──────────┘
-	        │                  └────────────────────────────────────────────────┘          │
-	        └──────────────────────────────────────────────────────────────────────────────┘
+	        |                  |                  |                             |          |          |
+	        |                  |                  |-----------------------------+----------+----------|
+	        |                  |------------------------------------------------|          |
+	        |------------------------------------------------------------------------------|
+
+
+	[Stack]
+	xxx/api/api.go:54
+	    debug.Display("value", v1).Break(true)
+	xxx/srv/server/main.go:96
+	    err := api.Start(config.Server.Id, "0.0.0.0:"+config.Server.GamePort)
+
+	press ENTER to continue
 
 吓死人了，怎么那么强大？
