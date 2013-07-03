@@ -77,21 +77,21 @@
 
 将输出以下牛逼的结果：
 
-	2013/07/04 00:29:32 [Debug] xxx/api/api.go:54
+	2013/07/04 00:34:47 [Debug] xxx/api/api.go:54
 
 	[Variables]
 	value = &api.mytype{ next: &api.mytype{ next: &api.mytype{ next: nil, prev: & }, prev: & }, prev: & }
-	        |                  |                  |                             |          |          |
-	        |                  |                  |-----------------------------+----------+----------|
-	        |                  |------------------------------------------------|          |
-	        |------------------------------------------------------------------------------|
+	        │                  │                  │                             │          │          │
+	        │                  │                  └─────────────────────────────┼──────────┼──────────┘
+	        │                  └────────────────────────────────────────────────┘          │
+	        └──────────────────────────────────────────────────────────────────────────────┘
 
 
 	[Stack]
 	xxx/api/api.go:54
 	    debug.Display("value", v1).Break(true)
 	xxx/srv/server/main.go:96
-	    err := api.Start(config.Server.Id, "0.0.0.0:"+config.Server.GamePort)
+	    err := api.Start(config.Server.Id, "0.0.0.0:"+config.Server.Port)
 
 	press ENTER to continue
 

@@ -177,15 +177,15 @@ func Print(headlen int, printPointers bool, data ...interface{}) []byte {
 					for p := pointers; p != nil; p = p.prev {
 						if len(p.used) > 0 && p.n >= pn {
 							if pn == p.n {
-								pointerBufs[pn][p.pos+headlen] = '|'
+								pointerBufs[pn][p.pos+headlen] = '└'
 
 								var maxpos = 0
 
 								for i, pos := range p.used {
 									if i < len(p.used)-1 {
-										pointerBufs[pn][pos+headlen] = '|'
+										pointerBufs[pn][pos+headlen] = '┴'
 									} else {
-										pointerBufs[pn][pos+headlen] = '|'
+										pointerBufs[pn][pos+headlen] = '┘'
 									}
 
 									maxpos = pos
@@ -193,17 +193,17 @@ func Print(headlen int, printPointers bool, data ...interface{}) []byte {
 
 								for i := 0; i < maxpos-p.pos-1; i++ {
 									if pointerBufs[pn][i+p.pos+headlen+1] == ' ' {
-										pointerBufs[pn][i+p.pos+headlen+1] = '-'
+										pointerBufs[pn][i+p.pos+headlen+1] = '─'
 									}
 								}
 							} else {
-								pointerBufs[pn][p.pos+headlen] = '|'
+								pointerBufs[pn][p.pos+headlen] = '│'
 
 								for _, pos := range p.used {
 									if pointerBufs[pn][pos+headlen] == ' ' {
-										pointerBufs[pn][pos+headlen] = '|'
+										pointerBufs[pn][pos+headlen] = '│'
 									} else {
-										pointerBufs[pn][pos+headlen] = '+'
+										pointerBufs[pn][pos+headlen] = '┼'
 									}
 								}
 							}
