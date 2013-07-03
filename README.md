@@ -20,27 +20,27 @@
 
 首先在需要调试的代码中使用以下方式引用调试模块：
 
-	import "github.com/realint/debug"
+	import "github.com/realint/dbgutil"
 
 如果不巧你的项目里已经有一个叫debug的模块，没关系，引用时候重命名就可以：
 
-	import godebug "github.com/realint/debug"
+	import dbg "github.com/realint/dbgutil"
 
 然后在需要打印变量值的位置用以下方式打印变量：
 
-	debug.Display("a", a, "b", b, "c", c)
+	dbgutil.Display("a", a, "b", b, "c", c)
 
 格式是一个字符串变量名 + 变量值，必须是成对出现，可以任意多对。
 
 如果需要暂停程序（类似断点），请用以下代码：
 
-	debug.Break()
+	dbgutil.Break()
 
 当程序运行到这句代码时会等待命令行输入回车，回车后程序就会继续运行了。
 
 有些时候需要达到特定条件才暂停程序，请用以下代码：
 
-	debug.Display("a", a, "b", b, "c", c).Break(a == 0)
+	dbgutil.Display("a", a, "b", b, "c", c).Break(a == 0)
 
 当a == 0的时候，程序就会暂停，等待命令行输入回车。
 
@@ -73,11 +73,11 @@
 
 当调用变量打印的时候：
 
-	debug.Display("value", v1)
+	dbgutil.Display("value", v1)
 
 将输出以下牛逼的结果：
 
-	2013/07/03 13:21:48 [debug]
+	2013/07/03 13:21:48 [Debug]
 	value = &api.mytype{ next: &api.mytype{ next: &api.mytype{ next: nil, prev: & }, prev: & }, prev: & }
 	        │                  │                  │                             │          │          │
 	        │                  │                  └─────────────────────────────┼──────────┼──────────┘

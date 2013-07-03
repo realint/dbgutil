@@ -1,12 +1,20 @@
-package debug
+package dbgutil
 
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
 	"reflect"
 	"runtime"
 	"strings"
+)
+
+var (
+	dunno     = []byte("???")
+	centerDot = []byte("·")
+	dot       = []byte(".")
 )
 
 type breaker struct {
@@ -14,30 +22,66 @@ type breaker struct {
 
 func (this breaker) Break(condition bool) {
 	if condition {
-		Break()
+		fmt.Fprintf(os.Stderr, "\n[Stack]\n%s", Stack(2))
+		fmt.Fprint(os.Stderr, "\npress ENTER to continue")
+		fmt.Scanln()
 	}
 }
 
 func Display(data ...interface{}) breaker {
+	var _, file, line, ok = runtime.Caller(1)
+
+	if !ok {
+		return breaker{}
+	}
+
+	var buf = new(bytes.Buffer)
+
+	fmt.Fprintf(buf, "[Debug] %s:%d \n", strings.SplitN(file, "src/", 2)[1], line)
+
+	fmt.Fprintf(buf, "\n[Variables]")
+
 	for i := 0; i < len(data); i += 2 {
-		var o = fmt.Sprintf("\n%s = %s", data[i], Print(len(data[i].(string))+3, true, data[i+1]))
+		fmt.Fprintf(buf, "\n%s = %s", data[i], Print(len(data[i].(string))+3, true, data[i+1]))
 
 		if i < len(data)-2 {
-			o += ", "
+			fmt.Fprint(buf, ", ")
 		}
-
-		log.Print("[debug] ", o)
 	}
+
+	log.Print(buf)
 
 	return breaker{}
 }
 
 func Break() {
+	var _, file, line, ok = runtime.Caller(1)
+
+	if !ok {
+		return
+	}
+
+	var buf = new(bytes.Buffer)
+
+	fmt.Fprintf(buf, "[Debug] %s:%d \n", strings.SplitN(file, "src/", 2)[1], line)
+
+	fmt.Fprintf(buf, "\n[Stack]\n%s", Stack(2))
+
+	fmt.Fprintf(buf, "\npress ENTER to continue")
+
+	log.Print(buf)
+
 	fmt.Scanln()
+}
+
+func doBreak(skip int) {
 }
 
 func Stack(skip int) []byte {
 	var buf = new(bytes.Buffer)
+
+	var lines [][]byte
+	var lastFile string
 
 	for i := skip; ; i++ {
 		var _, file, line, ok = runtime.Caller(i)
@@ -47,11 +91,34 @@ func Stack(skip int) []byte {
 		}
 
 		if !strings.Contains(file, "src/pkg/runtime/") {
-			fmt.Fprintf(buf, "	%s:%d\n", strings.SplitN(file, "src/", 2)[1], line)
+			fmt.Fprintf(buf, "%s:%d\n", strings.SplitN(file, "src/", 2)[1], line)
+
+			if file != lastFile {
+				data, err := ioutil.ReadFile(file)
+
+				if err != nil {
+					continue
+				}
+
+				lines = bytes.Split(data, []byte{'\n'})
+				lastFile = file
+			}
+
+			line-- // in stack trace, lines are 1-indexed but our array is 0-indexed
+
+			fmt.Fprintf(buf, "    %s\n", source(lines, line))
 		}
 	}
 
 	return buf.Bytes()
+}
+
+// source returns a space-trimmed slice of the n'th line.
+func source(lines [][]byte, n int) []byte {
+	if n < 0 || n >= len(lines) {
+		return dunno
+	}
+	return bytes.Trim(lines[n], " \t")
 }
 
 type pointerInfo struct {
@@ -165,15 +232,15 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 
 	switch t {
 	case reflect.Bool:
-		fmt.Fprintf(buf, "%t", val.Bool())
+		fmt.Fprint(buf, val.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		fmt.Fprintf(buf, "%v", val.Int())
+		fmt.Fprint(buf, val.Int())
 	case reflect.Uint8, reflect.Uint16, reflect.Uint, reflect.Uint32, reflect.Uint64:
-		fmt.Fprintf(buf, "%v", val.Uint())
+		fmt.Fprint(buf, val.Uint())
 	case reflect.Float32, reflect.Float64:
-		fmt.Fprintf(buf, "%v", val.Float())
+		fmt.Fprint(buf, val.Float())
 	case reflect.Complex64, reflect.Complex128:
-		fmt.Fprintf(buf, "%v", val.Complex())
+		fmt.Fprint(buf, val.Complex())
 	case reflect.Ptr, reflect.UnsafePointer:
 		if val.IsNil() {
 			fmt.Fprint(buf, "nil")
@@ -201,7 +268,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 
 		printKeyValue(buf, val.Elem(), pointers)
 	case reflect.String:
-		fmt.Fprintf(buf, "\"%s\"", val.String())
+		fmt.Fprint(buf, "\"", val.String(), "\"")
 	case reflect.Interface:
 		var value = val.Elem()
 
@@ -213,7 +280,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 	case reflect.Struct:
 		var t = val.Type()
 
-		fmt.Fprintf(buf, "%s", t)
+		fmt.Fprint(buf, t)
 		fmt.Fprint(buf, "{ ")
 
 		for i := 0; i < val.NumField(); i++ {
@@ -228,7 +295,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		}
 		fmt.Fprint(buf, " }")
 	case reflect.Array, reflect.Slice:
-		fmt.Fprintf(buf, "%s", val.Type())
+		fmt.Fprint(buf, val.Type())
 		fmt.Fprint(buf, "[")
 
 		for i := 0; i < val.Len(); i++ {
@@ -243,7 +310,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		var t = val.Type()
 		var keys = val.MapKeys()
 
-		fmt.Fprintf(buf, "%s", t)
+		fmt.Fprint(buf, t)
 		fmt.Fprint(buf, "{ ")
 
 		for i := 0; i < len(keys); i++ {
@@ -257,10 +324,10 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		}
 		fmt.Fprint(buf, " }")
 	case reflect.Chan:
-		fmt.Fprint(buf, val.Type().String())
+		fmt.Fprint(buf, val.Type())
 	case reflect.Invalid:
 		fmt.Fprint(buf, "`Invalid Type`")
 	default:
-		fmt.Fprint(buf, "`Could't Print`", t)
+		fmt.Fprint(buf, "`Could't Print`")
 	}
 }
