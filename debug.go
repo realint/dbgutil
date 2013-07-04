@@ -3,6 +3,7 @@ package dbgutil
 import (
 	"bytes"
 	"fmt"
+	"go/format"
 	"io/ioutil"
 	"log"
 	"os"
@@ -15,20 +16,29 @@ var (
 	dunno     = []byte("???")
 	centerDot = []byte("·")
 	dot       = []byte(".")
+	lbr       = []byte("{")
+	lbrn      = []byte("{\n")
+	com       = []byte(",")
+	comn      = []byte(",\n")
+	rbr       = []byte("}")
+	comnrbr   = []byte(",\n}")
 )
 
-type breaker struct {
-}
-
-func (this breaker) Break(condition bool) {
-	if condition {
-		fmt.Fprintf(os.Stderr, "\n[Stack]\n%s", Stack(2))
-		fmt.Fprint(os.Stderr, "\npress ENTER to continue")
-		fmt.Scanln()
-	}
-}
-
+//
+// 变量打印时不格式化代码，（支持指针关系打印）
+//
 func Display(data ...interface{}) breaker {
+	return display(false, data...)
+}
+
+//
+// 变量打印时格式化代码（不支持指针关系打印）
+//
+func FormatDisplay(data ...interface{}) breaker {
+	return display(true, data...)
+}
+
+func display(formated bool, data ...interface{}) breaker {
 	var _, file, line, ok = runtime.Caller(1)
 
 	if !ok {
@@ -42,7 +52,15 @@ func Display(data ...interface{}) breaker {
 	fmt.Fprintf(buf, "\n[Variables]\n")
 
 	for i := 0; i < len(data); i += 2 {
-		fmt.Fprintf(buf, "%s = %s", data[i], Print(len(data[i].(string))+3, true, data[i+1]))
+		var output []byte
+
+		if formated {
+			output = FormatPrint(len(data[i].(string))+3, true, data[i+1])
+		} else {
+			output = Print(len(data[i].(string))+3, true, data[i+1])
+		}
+
+		fmt.Fprintf(buf, "%s = %s", data[i], output)
 	}
 
 	log.Print(buf)
@@ -50,6 +68,23 @@ func Display(data ...interface{}) breaker {
 	return breaker{}
 }
 
+type breaker struct {
+}
+
+//
+// 根据条件暂停程序并打印堆栈信息，回车后继续运行
+//
+func (this breaker) Break(condition bool) {
+	if condition {
+		fmt.Fprintf(os.Stderr, "\n[Stack]\n%s", Stack(2))
+		fmt.Fprint(os.Stderr, "\npress ENTER to continue")
+		fmt.Scanln()
+	}
+}
+
+//
+// 暂停程序并打印堆栈信息，回车后继续运行
+//
 func Break() {
 	var _, file, line, ok = runtime.Caller(1)
 
@@ -70,6 +105,9 @@ func Break() {
 	fmt.Scanln()
 }
 
+//
+// 获取堆栈信息（从系统自带的debug模块中提取代码改造的）
+//
 func Stack(skip int) []byte {
 	var buf = new(bytes.Buffer)
 
@@ -122,6 +160,24 @@ type pointerInfo struct {
 	used []int
 }
 
+//
+// 格式化输出变量值
+//
+func FormatPrint(headlen int, printPointers bool, data ...interface{}) []byte {
+	var code1 = Print(headlen, false, data...)
+	var code2 = bytes.Replace(bytes.Replace(bytes.Replace(code1, lbr, lbrn, -1), com, comn, -1), rbr, comnrbr, -1)
+	var code3, err = format.Source(code2)
+
+	if err == nil {
+		return code3
+	}
+
+	return code2
+}
+
+//
+// 输出变量值
+//
 func Print(headlen int, printPointers bool, data ...interface{}) []byte {
 	var buf = new(bytes.Buffer)
 
@@ -247,7 +303,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		for p := *pointers; p != nil; p = p.prev {
 			if addr == p.addr {
 				p.used = append(p.used, buf.Len())
-				fmt.Fprint(buf, "&")
+				fmt.Fprintf(buf, "0x%x", addr)
 				return
 			}
 		}
@@ -268,7 +324,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		var value = val.Elem()
 
 		if !value.IsValid() {
-			fmt.Fprint(buf, "`Invalid Interface`")
+			fmt.Fprint(buf, "nil")
 		} else {
 			printKeyValue(buf, value, pointers)
 		}
@@ -290,8 +346,9 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		}
 		fmt.Fprint(buf, " }")
 	case reflect.Array, reflect.Slice:
+		fmt.Fprint(buf, "[]")
 		fmt.Fprint(buf, val.Type())
-		fmt.Fprint(buf, "[")
+		fmt.Fprint(buf, "{")
 
 		for i := 0; i < val.Len(); i++ {
 			printKeyValue(buf, val.Index(i), pointers)
@@ -300,7 +357,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 				fmt.Fprint(buf, ", ")
 			}
 		}
-		fmt.Fprint(buf, "]")
+		fmt.Fprint(buf, "}")
 	case reflect.Map:
 		var t = val.Type()
 		var keys = val.MapKeys()
@@ -321,8 +378,8 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 	case reflect.Chan:
 		fmt.Fprint(buf, val.Type())
 	case reflect.Invalid:
-		fmt.Fprint(buf, "`Invalid Type`")
+		fmt.Fprint(buf, "0 /* Invalid Type */")
 	default:
-		fmt.Fprint(buf, "`Could't Print`")
+		fmt.Fprint(buf, "0 /* Could't Print */")
 	}
 }
