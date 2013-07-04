@@ -43,11 +43,6 @@ func Display(data ...interface{}) breaker {
 
 	for i := 0; i < len(data); i += 2 {
 		fmt.Fprintf(buf, "%s = %s", data[i], Print(len(data[i].(string))+3, true, data[i+1]))
-		/*
-			if i < len(data)-2 {
-				fmt.Fprint(buf, ", ")
-			}
-		*/
 	}
 
 	log.Print(buf)
