@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
-	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
 	"runtime"
-	"strings"
 )
 
 var (
@@ -39,7 +37,7 @@ func FormatDisplay(data ...interface{}) breaker {
 }
 
 func display(formated bool, data ...interface{}) breaker {
-	var _, file, line, ok = runtime.Caller(1)
+	var pc, file, line, ok = runtime.Caller(2)
 
 	if !ok {
 		return breaker{}
@@ -47,7 +45,7 @@ func display(formated bool, data ...interface{}) breaker {
 
 	var buf = new(bytes.Buffer)
 
-	fmt.Fprintf(buf, "[Debug] %s:%d \n", file, line)
+	fmt.Fprintf(buf, "[Debug] at %s() [%s:%d]\n", function(pc), file, line)
 
 	fmt.Fprintf(buf, "\n[Variables]\n")
 
@@ -86,7 +84,7 @@ func (this breaker) Break(condition bool) {
 // 暂停程序并打印堆栈信息，回车后继续运行
 //
 func Break() {
-	var _, file, line, ok = runtime.Caller(1)
+	var pc, file, line, ok = runtime.Caller(1)
 
 	if !ok {
 		return
@@ -94,7 +92,7 @@ func Break() {
 
 	var buf = new(bytes.Buffer)
 
-	fmt.Fprintf(buf, "[Debug] %s:%d \n", file, line)
+	fmt.Fprintf(buf, "[Debug] at %s() [%s:%d]\n", function(pc), file, line)
 
 	fmt.Fprintf(buf, "\n[Stack]\n%s", Stack(2))
 
@@ -103,53 +101,6 @@ func Break() {
 	log.Print(buf)
 
 	fmt.Scanln()
-}
-
-//
-// 获取堆栈信息（从系统自带的debug模块中提取代码改造的）
-//
-func Stack(skip int) []byte {
-	var buf = new(bytes.Buffer)
-
-	var lines [][]byte
-	var lastFile string
-
-	for i := skip; ; i++ {
-		var _, file, line, ok = runtime.Caller(i)
-
-		if !ok {
-			break
-		}
-
-		if !strings.Contains(file, "src/pkg/runtime/") {
-			fmt.Fprintf(buf, "%s:%d\n", file, line)
-
-			if file != lastFile {
-				data, err := ioutil.ReadFile(file)
-
-				if err != nil {
-					continue
-				}
-
-				lines = bytes.Split(data, []byte{'\n'})
-				lastFile = file
-			}
-
-			line-- // in stack trace, lines are 1-indexed but our array is 0-indexed
-
-			fmt.Fprintf(buf, "    %s\n", source(lines, line))
-		}
-	}
-
-	return buf.Bytes()
-}
-
-// source returns a space-trimmed slice of the n'th line.
-func source(lines [][]byte, n int) []byte {
-	if n < 0 || n >= len(lines) {
-		return dunno
-	}
-	return bytes.Trim(lines[n], " \t")
 }
 
 type pointerInfo struct {
@@ -192,78 +143,13 @@ func Print(headlen int, printPointers bool, data ...interface{}) []byte {
 		printKeyValue(buf2, reflect.ValueOf(v), &pointers)
 
 		if k < len(data)-1 {
-			fmt.Fprint(buf, ", ")
+			fmt.Fprint(buf2, ", ")
 		}
 
 		fmt.Fprintln(buf2)
 
 		if printPointers && pointers != nil {
-			var anyused = false
-			var pointerNum = 0
-
-			for p := pointers; p != nil; p = p.prev {
-				if len(p.used) > 0 {
-					anyused = true
-				}
-				pointerNum += 1
-				p.n = pointerNum
-			}
-
-			if anyused {
-				var pointerBufs = make([][]rune, pointerNum+1)
-
-				for i := 0; i < len(pointerBufs); i++ {
-					var pointerBuf = make([]rune, buf2.Len()+headlen)
-
-					for j := 0; j < len(pointerBuf); j++ {
-						pointerBuf[j] = ' '
-					}
-
-					pointerBufs[i] = pointerBuf
-				}
-
-				for pn := 0; pn <= pointerNum; pn++ {
-					for p := pointers; p != nil; p = p.prev {
-						if len(p.used) > 0 && p.n >= pn {
-							if pn == p.n {
-								pointerBufs[pn][p.pos+headlen] = '└'
-
-								var maxpos = 0
-
-								for i, pos := range p.used {
-									if i < len(p.used)-1 {
-										pointerBufs[pn][pos+headlen] = '┴'
-									} else {
-										pointerBufs[pn][pos+headlen] = '┘'
-									}
-
-									maxpos = pos
-								}
-
-								for i := 0; i < maxpos-p.pos-1; i++ {
-									if pointerBufs[pn][i+p.pos+headlen+1] == ' ' {
-										pointerBufs[pn][i+p.pos+headlen+1] = '─'
-									}
-								}
-							} else {
-								pointerBufs[pn][p.pos+headlen] = '│'
-
-								for _, pos := range p.used {
-									if pointerBufs[pn][pos+headlen] == ' ' {
-										pointerBufs[pn][pos+headlen] = '│'
-									} else {
-										pointerBufs[pn][pos+headlen] = '┼'
-									}
-								}
-							}
-						}
-					}
-
-					buf2.WriteString(string(pointerBufs[pn]) + "\n")
-				}
-
-				fmt.Fprint(buf2)
-			}
+			printPointerInfo(buf2, headlen, pointers)
 		}
 
 		buf.Write(buf2.Bytes())
@@ -382,4 +268,110 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 	default:
 		fmt.Fprint(buf, "0 /* Could't Print */")
 	}
+}
+
+func printPointerInfo(buf *bytes.Buffer, headlen int, pointers *pointerInfo) {
+	var anyused = false
+	var pointerNum = 0
+
+	for p := pointers; p != nil; p = p.prev {
+		if len(p.used) > 0 {
+			anyused = true
+		}
+		pointerNum += 1
+		p.n = pointerNum
+	}
+
+	if anyused {
+		var pointerBufs = make([][]rune, pointerNum+1)
+
+		for i := 0; i < len(pointerBufs); i++ {
+			var pointerBuf = make([]rune, buf.Len()+headlen)
+
+			for j := 0; j < len(pointerBuf); j++ {
+				pointerBuf[j] = ' '
+			}
+
+			pointerBufs[i] = pointerBuf
+		}
+
+		for pn := 0; pn <= pointerNum; pn++ {
+			for p := pointers; p != nil; p = p.prev {
+				if len(p.used) > 0 && p.n >= pn {
+					if pn == p.n {
+						pointerBufs[pn][p.pos+headlen] = '└'
+
+						var maxpos = 0
+
+						for i, pos := range p.used {
+							if i < len(p.used)-1 {
+								pointerBufs[pn][pos+headlen] = '┴'
+							} else {
+								pointerBufs[pn][pos+headlen] = '┘'
+							}
+
+							maxpos = pos
+						}
+
+						for i := 0; i < maxpos-p.pos-1; i++ {
+							if pointerBufs[pn][i+p.pos+headlen+1] == ' ' {
+								pointerBufs[pn][i+p.pos+headlen+1] = '─'
+							}
+						}
+					} else {
+						pointerBufs[pn][p.pos+headlen] = '│'
+
+						for _, pos := range p.used {
+							if pointerBufs[pn][pos+headlen] == ' ' {
+								pointerBufs[pn][pos+headlen] = '│'
+							} else {
+								pointerBufs[pn][pos+headlen] = '┼'
+							}
+						}
+					}
+				}
+			}
+
+			buf.WriteString(string(pointerBufs[pn]) + "\n")
+		}
+	}
+}
+
+//
+// 获取堆栈信息（从系统自带的debug模块中提取代码改造的）
+//
+func Stack(skip int) []byte {
+	var buf = new(bytes.Buffer)
+
+	for i := skip; ; i++ {
+		var pc, file, line, ok = runtime.Caller(i)
+
+		if !ok {
+			break
+		}
+
+		fmt.Fprintf(buf, "at %s() [%s:%d]\n", function(pc), file, line)
+	}
+
+	return buf.Bytes()
+}
+
+// function returns, if possible, the name of the function containing the PC.
+func function(pc uintptr) []byte {
+	fn := runtime.FuncForPC(pc)
+	if fn == nil {
+		return dunno
+	}
+	name := []byte(fn.Name())
+	// The name includes the path name to the package, which is unnecessary
+	// since the file name is already included.  Plus, it has center dots.
+	// That is, we see
+	//	runtime/debug.*T·ptrmethod
+	// and want
+	//	*T.ptrmethod
+	if period := bytes.Index(name, dot); period >= 0 {
+		name = name[period+1:]
+	}
+	name = bytes.Replace(name, centerDot, dot, -1)
+	return name
 }
