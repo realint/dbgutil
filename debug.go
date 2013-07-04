@@ -37,16 +37,17 @@ func Display(data ...interface{}) breaker {
 
 	var buf = new(bytes.Buffer)
 
-	fmt.Fprintf(buf, "[Debug] %s:%d \n", strings.SplitN(file, "src/", 2)[1], line)
+	fmt.Fprintf(buf, "[Debug] %s:%d \n", file, line)
 
-	fmt.Fprintf(buf, "\n[Variables]")
+	fmt.Fprintf(buf, "\n[Variables]\n")
 
 	for i := 0; i < len(data); i += 2 {
-		fmt.Fprintf(buf, "\n%s = %s", data[i], Print(len(data[i].(string))+3, true, data[i+1]))
-
-		if i < len(data)-2 {
-			fmt.Fprint(buf, ", ")
-		}
+		fmt.Fprintf(buf, "%s = %s", data[i], Print(len(data[i].(string))+3, true, data[i+1]))
+		/*
+			if i < len(data)-2 {
+				fmt.Fprint(buf, ", ")
+			}
+		*/
 	}
 
 	log.Print(buf)
@@ -63,7 +64,7 @@ func Break() {
 
 	var buf = new(bytes.Buffer)
 
-	fmt.Fprintf(buf, "[Debug] %s:%d \n", strings.SplitN(file, "src/", 2)[1], line)
+	fmt.Fprintf(buf, "[Debug] %s:%d \n", file, line)
 
 	fmt.Fprintf(buf, "\n[Stack]\n%s", Stack(2))
 
@@ -72,9 +73,6 @@ func Break() {
 	log.Print(buf)
 
 	fmt.Scanln()
-}
-
-func doBreak(skip int) {
 }
 
 func Stack(skip int) []byte {
@@ -91,7 +89,7 @@ func Stack(skip int) []byte {
 		}
 
 		if !strings.Contains(file, "src/pkg/runtime/") {
-			fmt.Fprintf(buf, "%s:%d\n", strings.SplitN(file, "src/", 2)[1], line)
+			fmt.Fprintf(buf, "%s:%d\n", file, line)
 
 			if file != lastFile {
 				data, err := ioutil.ReadFile(file)
@@ -213,7 +211,7 @@ func Print(headlen int, printPointers bool, data ...interface{}) []byte {
 					buf2.WriteString(string(pointerBufs[pn]) + "\n")
 				}
 
-				fmt.Fprintln(buf2)
+				fmt.Fprint(buf2)
 			}
 		}
 
@@ -241,7 +239,9 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		fmt.Fprint(buf, val.Float())
 	case reflect.Complex64, reflect.Complex128:
 		fmt.Fprint(buf, val.Complex())
-	case reflect.Ptr, reflect.UnsafePointer:
+	case reflect.UnsafePointer:
+		fmt.Fprintf(buf, "unsafe.Pointer(0x%x)", val.Pointer())
+	case reflect.Ptr:
 		if val.IsNil() {
 			fmt.Fprint(buf, "nil")
 			return

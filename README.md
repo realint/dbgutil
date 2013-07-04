@@ -49,50 +49,36 @@
 效果演示
 =======
 
-下面演示以下牛逼的指针引用打印。
+演示一下牛逼的指针引用打印，下面是示例代码：
 
-假设程序中有几个变量，他们之间通过指针互相引用，关系如下：
+	package main
+
+	import "github.com/realint/dbgutil"
 
 	type mytype struct {
 		next *mytype
 		prev *mytype
 	}
 
-	var v1 = new(mytype)
-	var v2 = new(mytype)
-	var v3 = new(mytype)
+	func main() {
+		var v1 = new(mytype)
+		var v2 = new(mytype)
+		var v3 = new(mytype)
 
-	v1.prev = v3
-	v1.next = v2
+		v1.prev = v3
+		v1.next = v2
 
-	v2.prev = v1
-	v2.next = v3
+		v2.prev = v1
+		v2.next = v3
 
-	v3.prev = v2
-	v3.next = nil
+		v3.prev = v2
+		v3.next = nil
 
-当调用变量打印的时候：
-
-	dbgutil.Display("value", v1).Break(true)
+		dbgutil.Display("v1", v1, "v2", v2, "v3", v3).Break(true)
+	}
 
 将输出以下牛逼的结果：
 
-	2013/07/04 00:34:47 [Debug] xxx/api/api.go:54
-
-	[Variables]
-	value = &api.mytype{ next: &api.mytype{ next: &api.mytype{ next: nil, prev: & }, prev: & }, prev: & }
-	        │                  │                  │                             │          │          │
-	        │                  │                  └─────────────────────────────┼──────────┼──────────┘
-	        │                  └────────────────────────────────────────────────┘          │
-	        └──────────────────────────────────────────────────────────────────────────────┘
-
-
-	[Stack]
-	xxx/api/api.go:54
-	    debug.Display("value", v1).Break(true)
-	xxx/srv/server/main.go:96
-	    err := api.Start(config.Server.Id, "0.0.0.0:"+config.Server.Port)
-
-	press ENTER to continue
+![demo](http://dl.dropboxusercontent.com/s/ly4277s37a2di6m/dbgutil_demo.png)
 
 吓死人了，怎么那么强大？
