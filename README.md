@@ -117,4 +117,4 @@ dbgutil对指针关系打印做了特别处理，一方面可以避免递归引�
 
 输出结果：
 
-![示例输出5](http://dl.dropboxusercontent.com/s/pqdxxx43rmtlzql/output5.png)
+![示例输出5](http://dl.dropboxusercontent.com/s/pqdxxx43rmtlzql/output5.png?i=1)
