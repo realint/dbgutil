@@ -33,58 +33,34 @@
 
 程序调试时，最常用的方式是打印关键的几个变量，下面演示如何用dbgutil打印变量。
 
-测试代码test.go：
+测试代码[test1.go](http://dl.dropboxusercontent.com/s/jj5mtnbwcqv51r6/test1.go)：
 
-	package main
-
-	import "github.com/realint/dbgutil"
-
-	func main() {
-		dbgutil.Display("v1", 1, "v2", 2, "v3", 3)
-	}
+![示例代码1](http://dl.dropboxusercontent.com/s/zedzgp79zsg08rt/code1.png)
 
 运行测试：
 
-	go run test.go
+	go run test1.go
 
 输出结果：
 
-	2013/07/04 22:27:17 [Debug] at main() [/Users/dada/test.go:6]
-
-	[Variables]
-	v1 = 1
-	v2 = 2
-	v3 = 3
+![示例输出1](http://dl.dropboxusercontent.com/s/p1ip1rlbsa4qbux/output1.png)
 
 示例 - 暂停程序
 ========
 
 有时候调试程序时会需要暂停程序，等待调整测试环境或者查看各种参数后再继续执行，下面演示如何做到这一点。
 
-测试代码test.go：
+测试代码[test2.go](http://dl.dropboxusercontent.com/s/2pj04sqqxiiisxr/test2.go)：
 
-	package main
-
-	import "github.com/realint/dbgutil"
-
-	func main() {
-		dbgutil.Break()
-	}
+![示例代码2](http://dl.dropboxusercontent.com/s/dnem9ewlsxijjiv/code2.png)
 
 运行测试：
 
-	go run test.go
+	go run test2.go
 
 输出结果：
 
-	2013/07/04 22:38:51 [Debug] at main() [/Users/dada/test.go:6]
-
-	[Stack]
-	at main() [/Users/dada/test.go:6]
-	at main() [/usr/local/Cellar/go/1.1/src/pkg/runtime/proc.c:182]
-	at goexit() [/usr/local/Cellar/go/1.1/src/pkg/runtime/proc.c:1223]
-
-	press ENTER to continue
+![示例输出2](http://dl.dropboxusercontent.com/s/cjawd5k9z4fnbly/output2.png)
 
 程序暂停时会打印堆栈跟踪信息，回车后程序将继续运行。
 
@@ -93,35 +69,17 @@
 
 有时候调试程序时会需要在特定条件满足的时才需要候暂停程序，下面演示如何做到这一点。
 
-测试代码test.go：
+测试代码[test3.go](http://dl.dropboxusercontent.com/s/o3x8faa7hrwqspv/test3.go)：
 
-	package main
-
-	import "github.com/realint/dbgutil"
-
-	func main() {
-		var a = 10
-
-		dbgutil.Display("a", a).Break(a == 10)
-	}
+![示例代码3](http://dl.dropboxusercontent.com/s/k1gmalmuy5skhsz/code3.png)
 
 运行测试：
 
-	go run test.go
+	go run test3.go
 
 输出结果：
 
-	2013/07/04 22:44:12 [Debug] at main() [/Users/dada/test.go:8]
-
-	[Variables]
-	a = 10
-
-	[Stack]
-	at main() [/Users/dada/test.go:8]
-	at main() [/usr/local/Cellar/go/1.1/src/pkg/runtime/proc.c:182]
-	at goexit() [/usr/local/Cellar/go/1.1/src/pkg/runtime/proc.c:1223]
-
-	press ENTER to continue
+![示例输出3](http://dl.dropboxusercontent.com/s/cfi5mgn2fd1oxjc/output3.png)
 
 程序暂停时会打印堆栈跟踪信息，回车后程序将继续运行。
 
@@ -130,81 +88,33 @@
 
 dbgutil对指针关系打印做了特别处理，一方面可以避免递归引用导致打印陷入死循环，另一方面可以让指针引用关系可视化显示。
 
-示例代码test.go：
+示例代码[test4.go](http://dl.dropboxusercontent.com/s/2tfyxqiijdwu6ee/test4.go)：
 
-	package main
-
-	import "github.com/realint/dbgutil"
-
-	type mytype struct {
-		next *mytype
-		prev *mytype
-	}
-
-	func main() {
-		var v1 = new(mytype)
-		var v2 = new(mytype)
-		var v3 = new(mytype)
-
-		v1.prev = v3
-		v1.next = v2
-
-		v2.prev = v1
-		v2.next = v3
-
-		v3.prev = v2
-		v3.next = nil
-
-		dbgutil.Display("v1", v1, "v2", v2, "v3", v3).Break(true)
-	}
+![示例代码4](http://dl.dropboxusercontent.com/s/rv0jdeccsbx4mcp/code4.png)
 
 运行测试：
 
-	go run test.go
+	go run test4.go
 
 输出结果（不一定所有浏览器都可以正常显示等宽字符，所以这里用图片演示）:
 
-![指针关系打印](http://dl.dropboxusercontent.com/s/d44215dgasti8gy/pointer_demo.png)
+![示例输出4](http://dl.dropboxusercontent.com/s/6dcvhntt4t4q2xq/output4.png)
 
 示例 - 格式化打印
 ========
 
 默认的Display行为是把复杂的结构体都用一行文本输出，这是为了便于可视化指针关系，但是有时候复杂结构体格式化输出会更方便查看，下面演示如何格式化输出。
 
-示例代码test.go：
+示例代码[test5.go](http://dl.dropboxusercontent.com/s/vrm0k72tuee3siz/test5.go)：
 
-	package main
-
-	import "github.com/realint/dbgutil"
-
-	type mytype struct {
-		next *mytype
-		prev *mytype
-	}
-
-	func main() {
-		var v1 = new(mytype)
-		var v2 = new(mytype)
-		var v3 = new(mytype)
-
-		v1.prev = v3
-		v1.next = v2
-
-		v2.prev = v1
-		v2.next = v3
-
-		v3.prev = v2
-		v3.next = nil
-
-		dbgutil.FormatDisplay("v1", v1, "v2", v2, "v3", v3).Break(true)
-	}
+![示例代码5](http://dl.dropboxusercontent.com/s/11eg8tcvc6hcg4n/code5.png)
 
 跟上一个示例的区别是调用了FormatDisplay。
 
 运行测试：
 
-	go run test.go
+	go run test5.go
 
 输出结果：
 
-![结构体打印](http://dl.dropboxusercontent.com/s/gxfqj7razfa0bnw/format_demo.png)
+![示例输出5](http://dl.dropboxusercontent.com/s/pqdxxx43rmtlzql/output5.png)
