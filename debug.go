@@ -177,7 +177,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 	case reflect.Complex64, reflect.Complex128:
 		fmt.Fprint(buf, val.Complex())
 	case reflect.UnsafePointer:
-		fmt.Fprintf(buf, "unsafe.Pointer(0x%x)", val.Pointer())
+		fmt.Fprintf(buf, "unsafe.Pointer(0x%X)", val.Pointer())
 	case reflect.Ptr:
 		if val.IsNil() {
 			fmt.Fprint(buf, "nil")
@@ -189,7 +189,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		for p := *pointers; p != nil; p = p.prev {
 			if addr == p.addr {
 				p.used = append(p.used, buf.Len())
-				fmt.Fprintf(buf, "0x%x", addr)
+				fmt.Fprintf(buf, "0x%X", addr)
 				return
 			}
 		}
