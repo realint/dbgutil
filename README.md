@@ -207,44 +207,4 @@ dbgutil对指针关系打印做了特别处理，一方面可以避免递归引�
 
 输出结果：
 
-	2013/07/04 22:53:56 [Debug] at main() [/Users/dada/test.go:24]
-
-	[Variables]
-	v1 = &main.mytype{
-		next: &main.mytype{
-			next: &main.mytype{
-				next: nil,
-				prev: 0x2102831a0,
-			},
-			prev: 0x210283190,
-		},
-		prev: 0x2102831b0,
-	}
-	v2 = &main.mytype{
-		next: &main.mytype{
-			next: nil,
-			prev: 0x2102831a0,
-		},
-		prev: &main.mytype{
-			next: 0x2102831a0,
-			prev: 0x2102831b0,
-		},
-	}
-	v3 = &main.mytype{
-		next: nil,
-		prev: &main.mytype{
-			next: 0x2102831b0,
-			prev: &main.mytype{
-				next: 0x2102831a0,
-				prev: 0x2102831b0,
-			},
-		},
-	}
-
-	[Stack]
-	at main() [/Users/dada/test.go:24]
-	at main() [/usr/local/Cellar/go/1.1/src/pkg/runtime/proc.c:182]
-	at goexit() [/usr/local/Cellar/go/1.1/src/pkg/runtime/proc.c:1223]
-
-	press ENTER to continue
-
+![结构体打印](http://dl.dropboxusercontent.com/s/gxfqj7razfa0bnw/format_demo.png)
