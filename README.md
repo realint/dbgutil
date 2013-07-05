@@ -96,7 +96,7 @@ dbgutil对指针关系打印做了特别处理，一方面可以避免递归引�
 
 	go run test4.go
 
-输出结果（不一定所有浏览器都可以正常显示等宽字符，所以这里用图片演示）:
+输出结果:
 
 ![示例输出4](http://dl.dropboxusercontent.com/s/6dcvhntt4t4q2xq/output4.png)
 
