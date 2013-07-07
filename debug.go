@@ -74,7 +74,7 @@ type breaker struct {
 //
 func (this breaker) Break(condition bool) {
 	if condition {
-		fmt.Fprintf(os.Stderr, "\n[Stack]\n%s", Stack(2))
+		fmt.Fprintf(os.Stderr, "\n[Stack]\n%s", Stack(2, ""))
 		fmt.Fprint(os.Stderr, "\npress ENTER to continue")
 		fmt.Scanln()
 	}
@@ -94,7 +94,7 @@ func Break() {
 
 	fmt.Fprintf(buf, "[Debug] at %s() [%s:%d]\n", function(pc), file, line)
 
-	fmt.Fprintf(buf, "\n[Stack]\n%s", Stack(2))
+	fmt.Fprintf(buf, "\n[Stack]\n%s", Stack(2, ""))
 
 	fmt.Fprintf(buf, "\npress ENTER to continue")
 
@@ -340,7 +340,7 @@ func printPointerInfo(buf *bytes.Buffer, headlen int, pointers *pointerInfo) {
 //
 // 获取堆栈信息（从系统自带的debug模块中提取代码改造的）
 //
-func Stack(skip int) []byte {
+func Stack(skip int, indent string) []byte {
 	var buf = new(bytes.Buffer)
 
 	for i := skip; ; i++ {
@@ -349,6 +349,8 @@ func Stack(skip int) []byte {
 		if !ok {
 			break
 		}
+
+		buf.WriteString(indent)
 
 		fmt.Fprintf(buf, "at %s() [%s:%d]\n", function(pc), file, line)
 	}
