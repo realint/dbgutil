@@ -3,7 +3,6 @@ package dbgutil
 import (
 	"bytes"
 	"fmt"
-	"go/format"
 	"log"
 	"os"
 	"reflect"
@@ -50,13 +49,7 @@ func display(formated bool, data ...interface{}) breaker {
 	fmt.Fprintf(buf, "\n[Variables]\n")
 
 	for i := 0; i < len(data); i += 2 {
-		var output []byte
-
-		if formated {
-			output = FormatPrint(len(data[i].(string))+3, true, data[i+1])
-		} else {
-			output = Print(len(data[i].(string))+3, true, data[i+1])
-		}
+		var output = Print(len(data[i].(string))+3, !formated, formated, "    ", nil, data[i+1])
 
 		fmt.Fprintf(buf, "%s = %s", data[i], output)
 	}
@@ -112,35 +105,27 @@ type pointerInfo struct {
 }
 
 //
-// 格式化输出变量值
-//
-func FormatPrint(headlen int, printPointers bool, data ...interface{}) []byte {
-	var code1 = Print(headlen, false, data...)
-	var code2 = bytes.Replace(bytes.Replace(bytes.Replace(code1, lbr, lbrn, -1), com, comn, -1), rbr, comnrbr, -1)
-	var code3, err = format.Source(code2)
-
-	if err == nil {
-		return code3
-	}
-
-	return code2
-}
-
-//
 // 输出变量值
 //
-func Print(headlen int, printPointers bool, data ...interface{}) []byte {
+func Print(headlen int, printPointers, formatOutput bool, indent string, structFilter func(string, string) bool, data ...interface{}) []byte {
 	var buf = new(bytes.Buffer)
 
 	if len(data) > 1 {
+		fmt.Fprint(buf, indent)
+
 		fmt.Fprint(buf, "[")
+
+		if formatOutput {
+			fmt.Fprintln(buf)
+		}
 	}
 
 	for k, v := range data {
 		var buf2 = new(bytes.Buffer)
 		var pointers *pointerInfo
+		var interfaces []reflect.Value = make([]reflect.Value, 0, 10)
 
-		printKeyValue(buf2, reflect.ValueOf(v), &pointers)
+		printKeyValue(buf2, reflect.ValueOf(v), &pointers, &interfaces, structFilter, formatOutput, indent, 1)
 
 		if k < len(data)-1 {
 			fmt.Fprint(buf2, ", ")
@@ -156,13 +141,69 @@ func Print(headlen int, printPointers bool, data ...interface{}) []byte {
 	}
 
 	if len(data) > 1 {
+		if formatOutput {
+			fmt.Fprintln(buf)
+		}
+
+		fmt.Fprint(buf, indent)
+
 		fmt.Fprint(buf, "]")
 	}
 
 	return buf.Bytes()
 }
 
-func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo) {
+func isSimpleType(val reflect.Value, kind reflect.Kind, pointers **pointerInfo, interfaces *[]reflect.Value) bool {
+	switch kind {
+	case reflect.Bool:
+		return true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return true
+	case reflect.Uint8, reflect.Uint16, reflect.Uint, reflect.Uint32, reflect.Uint64:
+		return true
+	case reflect.Float32, reflect.Float64:
+		return true
+	case reflect.Complex64, reflect.Complex128:
+		return true
+	case reflect.String:
+		return true
+	case reflect.Chan:
+		return true
+	case reflect.Invalid:
+		return true
+	case reflect.Interface:
+		for _, in := range *interfaces {
+			if reflect.DeepEqual(in, val) {
+				return true
+			}
+		}
+		return false
+	case reflect.UnsafePointer:
+		if val.IsNil() {
+			return true
+		}
+
+		var elem = val.Elem()
+
+		if isSimpleType(elem, elem.Kind(), pointers, interfaces) {
+			return true
+		}
+
+		var addr = val.Elem().UnsafeAddr()
+
+		for p := *pointers; p != nil; p = p.prev {
+			if addr == p.addr {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return false
+}
+
+func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo, interfaces *[]reflect.Value, structFilter func(string, string) bool, formatOutput bool, indent string, level int) {
 	var t = val.Kind()
 
 	switch t {
@@ -203,7 +244,7 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 
 		fmt.Fprint(buf, "&")
 
-		printKeyValue(buf, val.Elem(), pointers)
+		printKeyValue(buf, val.Elem(), pointers, interfaces, structFilter, formatOutput, indent, level)
 	case reflect.String:
 		fmt.Fprint(buf, "\"", val.String(), "\"")
 	case reflect.Interface:
@@ -212,61 +253,162 @@ func printKeyValue(buf *bytes.Buffer, val reflect.Value, pointers **pointerInfo)
 		if !value.IsValid() {
 			fmt.Fprint(buf, "nil")
 		} else {
-			printKeyValue(buf, value, pointers)
+			for _, in := range *interfaces {
+				if reflect.DeepEqual(in, val) {
+					fmt.Fprint(buf, "repeat")
+					return
+				}
+			}
+
+			*interfaces = append(*interfaces, val)
+
+			printKeyValue(buf, value, pointers, interfaces, structFilter, formatOutput, indent, level+1)
 		}
 	case reflect.Struct:
 		var t = val.Type()
 
 		fmt.Fprint(buf, t)
-		fmt.Fprint(buf, "{ ")
+		fmt.Fprint(buf, "{")
 
 		for i := 0; i < val.NumField(); i++ {
-			fmt.Fprint(buf, t.Field(i).Name)
+			if formatOutput {
+				fmt.Fprintln(buf)
+			} else {
+				fmt.Fprint(buf, " ")
+			}
+
+			var name = t.Field(i).Name
+
+			if formatOutput {
+				for ind := 0; ind < level; ind++ {
+					fmt.Fprint(buf, indent)
+				}
+			}
+
+			fmt.Fprint(buf, name)
 			fmt.Fprint(buf, ": ")
 
-			printKeyValue(buf, val.Field(i), pointers)
-
-			if i < val.NumField()-1 {
-				fmt.Fprint(buf, ", ")
+			if structFilter != nil && structFilter(t.String(), name) {
+				fmt.Fprint(buf, "ignore")
+			} else {
+				printKeyValue(buf, val.Field(i), pointers, interfaces, structFilter, formatOutput, indent, level+1)
 			}
+
+			fmt.Fprint(buf, ",")
 		}
-		fmt.Fprint(buf, " }")
+
+		if formatOutput {
+			fmt.Fprintln(buf)
+
+			for ind := 0; ind < level-1; ind++ {
+				fmt.Fprint(buf, indent)
+			}
+		} else {
+			fmt.Fprint(buf, " ")
+		}
+
+		fmt.Fprint(buf, "}")
 	case reflect.Array, reflect.Slice:
-		fmt.Fprint(buf, "[]")
 		fmt.Fprint(buf, val.Type())
 		fmt.Fprint(buf, "{")
 
-		for i := 0; i < val.Len(); i++ {
-			printKeyValue(buf, val.Index(i), pointers)
+		var allSimple = true
 
-			if i < val.Len()-1 {
-				fmt.Fprint(buf, ", ")
+		for i := 0; i < val.Len(); i++ {
+			var elem = val.Index(i)
+
+			var isSimple = isSimpleType(elem, elem.Kind(), pointers, interfaces)
+
+			if !isSimple {
+				allSimple = false
+			}
+
+			if formatOutput && !isSimple {
+				fmt.Fprintln(buf)
+			} else {
+				fmt.Fprint(buf, " ")
+			}
+
+			if formatOutput && !isSimple {
+				for ind := 0; ind < level; ind++ {
+					fmt.Fprint(buf, indent)
+				}
+			}
+
+			printKeyValue(buf, elem, pointers, interfaces, structFilter, formatOutput, indent, level+1)
+
+			if i != val.Len()-1 || !allSimple {
+				fmt.Fprint(buf, ",")
 			}
 		}
+
+		if formatOutput && !allSimple {
+			fmt.Fprintln(buf)
+
+			for ind := 0; ind < level-1; ind++ {
+				fmt.Fprint(buf, indent)
+			}
+		} else {
+			fmt.Fprint(buf, " ")
+		}
+
 		fmt.Fprint(buf, "}")
 	case reflect.Map:
 		var t = val.Type()
 		var keys = val.MapKeys()
 
 		fmt.Fprint(buf, t)
-		fmt.Fprint(buf, "{ ")
+		fmt.Fprint(buf, "{")
+
+		var allSimple = true
 
 		for i := 0; i < len(keys); i++ {
-			printKeyValue(buf, keys[i], pointers)
-			fmt.Fprint(buf, ": ")
-			printKeyValue(buf, val.MapIndex(keys[i]), pointers)
+			var elem = val.MapIndex(keys[i])
 
-			if i < len(keys)-1 {
-				fmt.Fprint(buf, ", ")
+			var isSimple = isSimpleType(elem, elem.Kind(), pointers, interfaces)
+
+			if !isSimple {
+				allSimple = false
+			}
+
+			if formatOutput && !isSimple {
+				fmt.Fprintln(buf)
+			} else {
+				fmt.Fprint(buf, " ")
+			}
+
+			if formatOutput && !isSimple {
+				for ind := 0; ind <= level; ind++ {
+					fmt.Fprint(buf, indent)
+				}
+			}
+
+			printKeyValue(buf, keys[i], pointers, interfaces, structFilter, formatOutput, indent, level+1)
+			fmt.Fprint(buf, ": ")
+			printKeyValue(buf, elem, pointers, interfaces, structFilter, formatOutput, indent, level+1)
+
+			if i != val.Len()-1 || !allSimple {
+				fmt.Fprint(buf, ",")
 			}
 		}
-		fmt.Fprint(buf, " }")
+
+		if formatOutput && !allSimple {
+			fmt.Fprintln(buf)
+
+			for ind := 0; ind < level-1; ind++ {
+				fmt.Fprint(buf, indent)
+			}
+		} else {
+			fmt.Fprint(buf, " ")
+		}
+
+		fmt.Fprint(buf, "}")
 	case reflect.Chan:
 		fmt.Fprint(buf, val.Type())
 	case reflect.Invalid:
-		fmt.Fprint(buf, "0 /* Invalid Type */")
+		fmt.Fprint(buf, "invalid")
 	default:
-		fmt.Fprint(buf, "0 /* Could't Print */")
+		fmt.Fprint(buf, "unknow")
 	}
 }
 
